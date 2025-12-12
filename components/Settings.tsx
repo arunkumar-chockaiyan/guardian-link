@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { UserProfile, Contact } from '../types';
-import { Save, Plus, Trash2, User, Phone, MapPin, Activity } from 'lucide-react';
+import { Save, Plus, Trash2, User, Phone, MapPin, Activity, Mail, Radio } from 'lucide-react';
 
 interface Props {
   profile: UserProfile;
@@ -15,7 +15,7 @@ export const Settings: React.FC<Props> = ({ profile, contacts, onSaveProfile, on
   const [localContacts, setLocalContacts] = useState(contacts);
 
   const handleAddContact = () => {
-    setLocalContacts([...localContacts, { id: Date.now().toString(), name: '', phone: '', relation: '' }]);
+    setLocalContacts([...localContacts, { id: Date.now().toString(), name: '', phone: '', email: '', relation: '' }]);
   };
 
   const updateContact = (id: string, field: keyof Contact, value: string) => {
@@ -36,7 +36,7 @@ export const Settings: React.FC<Props> = ({ profile, contacts, onSaveProfile, on
     <div className="bg-white h-full w-full overflow-y-auto pb-24">
       <div className="sticky top-0 bg-white border-b border-slate-200 p-4 flex justify-between items-center z-10">
         <h2 className="text-2xl font-bold text-slate-800">Configuration</h2>
-        <button onClick={handleSave} className="bg-slate-900 text-white px-6 py-2 rounded-full font-bold flex items-center gap-2">
+        <button onClick={handleSave} className="bg-slate-900 text-white px-6 py-2 rounded-full font-bold flex items-center gap-2 hover:bg-slate-800 transition-colors">
           <Save size={18} /> Save
         </button>
       </div>
@@ -88,13 +88,13 @@ export const Settings: React.FC<Props> = ({ profile, contacts, onSaveProfile, on
               <Phone className="text-green-600" />
               <h3 className="text-xl font-bold">Emergency Contacts</h3>
             </div>
-            <button onClick={handleAddContact} className="text-blue-600 font-bold flex items-center gap-1 text-sm bg-blue-50 px-3 py-1 rounded-full">
+            <button onClick={handleAddContact} className="text-blue-600 font-bold flex items-center gap-1 text-sm bg-blue-50 px-3 py-1 rounded-full hover:bg-blue-100 transition-colors">
               <Plus size={16} /> Add
             </button>
           </div>
           
           <div className="space-y-4">
-            {localContacts.map((contact, index) => (
+            {localContacts.map((contact) => (
               <div key={contact.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200 relative">
                 <button 
                   onClick={() => removeContact(contact.id)}
@@ -103,25 +103,44 @@ export const Settings: React.FC<Props> = ({ profile, contacts, onSaveProfile, on
                   <Trash2 size={18} />
                 </button>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pr-8">
-                  <input
-                    placeholder="Name"
-                    value={contact.name}
-                    onChange={e => updateContact(contact.id, 'name', e.target.value)}
-                    className="p-2 border rounded"
-                  />
-                  <input
-                    placeholder="Phone Number"
-                    value={contact.phone}
-                    onChange={e => updateContact(contact.id, 'phone', e.target.value)}
-                    className="p-2 border rounded"
-                    type="tel"
-                  />
-                  <input
-                    placeholder="Relation (e.g. Son)"
-                    value={contact.relation}
-                    onChange={e => updateContact(contact.id, 'relation', e.target.value)}
-                    className="p-2 border rounded sm:col-span-2"
-                  />
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-500 uppercase">Name</label>
+                    <input
+                      placeholder="Jane Doe"
+                      value={contact.name}
+                      onChange={e => updateContact(contact.id, 'name', e.target.value)}
+                      className="w-full p-2 border rounded"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-500 uppercase">Relation</label>
+                    <input
+                      placeholder="e.g. Daughter"
+                      value={contact.relation}
+                      onChange={e => updateContact(contact.id, 'relation', e.target.value)}
+                      className="w-full p-2 border rounded"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-500 uppercase flex items-center gap-1"><Phone size={12}/> Phone</label>
+                    <input
+                      placeholder="555-0123"
+                      value={contact.phone}
+                      onChange={e => updateContact(contact.id, 'phone', e.target.value)}
+                      className="w-full p-2 border rounded"
+                      type="tel"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-500 uppercase flex items-center gap-1"><Mail size={12}/> Email</label>
+                    <input
+                      placeholder="jane@example.com"
+                      value={contact.email}
+                      onChange={e => updateContact(contact.id, 'email', e.target.value)}
+                      className="w-full p-2 border rounded"
+                      type="email"
+                    />
+                  </div>
                 </div>
               </div>
             ))}
@@ -130,6 +149,54 @@ export const Settings: React.FC<Props> = ({ profile, contacts, onSaveProfile, on
             )}
           </div>
         </section>
+
+        {/* Responder Network Section */}
+        <section className="space-y-4 pt-4 border-t border-slate-100">
+          <div className="flex items-center gap-2 text-slate-800 border-b pb-2">
+            <Radio className="text-purple-600" />
+            <h3 className="text-xl font-bold">Community Network</h3>
+          </div>
+          
+          <div className="bg-purple-50 p-4 rounded-xl border border-purple-100">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h4 className="font-bold text-purple-900">Volunteer Responder</h4>
+                <p className="text-xs text-purple-700 max-w-[250px] mt-1">
+                  Opt-in to receive alerts when neighbors within 2 miles trigger an emergency.
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={localProfile.isResponder}
+                  onChange={e => setLocalProfile({...localProfile, isResponder: e.target.checked})}
+                  className="sr-only peer" 
+                />
+                <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+              </label>
+            </div>
+
+            {localProfile.isResponder && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-300">
+                <label className="block text-sm font-semibold text-purple-800 mb-1">
+                  Certifications / Skills
+                </label>
+                <input
+                  type="text"
+                  value={localProfile.responderSkills}
+                  onChange={e => setLocalProfile({ ...localProfile, responderSkills: e.target.value })}
+                  className="w-full p-3 border border-purple-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                  placeholder="e.g. CPR Certified, EMT, Nurse, Strong swimmer"
+                />
+                <p className="text-xs text-purple-500 mt-2 flex items-center gap-1">
+                  <Activity size={12} />
+                  Your location will be anonymously monitored for nearby alerts.
+                </p>
+              </div>
+            )}
+          </div>
+        </section>
+
       </div>
     </div>
   );

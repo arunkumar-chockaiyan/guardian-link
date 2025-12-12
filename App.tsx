@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { EmergencyButton } from './components/EmergencyButton';
 import { Settings } from './components/Settings';
 import { LiveEmergency } from './components/LiveEmergency';
+import { IntakeScreen } from './components/IntakeScreen';
 import { UserProfile, Contact, EmergencyActionState, EmergencyStepStatus, LogEntry } from './types';
 import { getCurrentLocation } from './services/location.ts';
 import { generateEmergencyScript, findNearestHospital, generateCalmInstructions } from './services/geminiService';
@@ -11,7 +12,9 @@ import { Settings as SettingsIcon, ShieldCheck } from 'lucide-react';
 const defaultProfile: UserProfile = {
   name: "Senior Citizen",
   medicalConditions: "None listed",
-  address: "Unknown"
+  address: "Unknown",
+  isResponder: false,
+  responderSkills: ""
 };
 
 const defaultActionState: EmergencyActionState = {
@@ -22,14 +25,18 @@ const defaultActionState: EmergencyActionState = {
 };
 
 export default function App() {
-  const [view, setView] = useState<'HOME' | 'SETTINGS' | 'EMERGENCY'>('HOME');
+  const [view, setView] = useState<'HOME' | 'SETTINGS' | 'INTAKE' | 'EMERGENCY'>('HOME');
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [actionState, setActionState] = useState<EmergencyActionState>(defaultActionState);
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [generatedScript, setGeneratedScript] = useState<string>("");
   const [isInitializing, setIsInitializing] = useState(false);
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
+  
   const audioContextRef = useRef<AudioContext | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
 
   // Helper to add logs
   const addLog = (message: string, source: LogEntry['source'] = 'SYSTEM') => {
@@ -53,13 +60,36 @@ export default function App() {
     }
   };
 
+  const handleStartIntake = () => {
+    setView('INTAKE');
+  };
+
   // The Master Emergency Coordinator Function
-  const handleTriggerEmergency = async () => {
+  const handleTriggerEmergency = async (situation: string, stream: MediaStream | null) => {
+    setMediaStream(stream);
+    
+    // Start Recording if stream exists
+    if (stream) {
+      try {
+        const recorder = new MediaRecorder(stream);
+        recorder.ondataavailable = (e) => {
+          if (e.data.size > 0) {
+            recordedChunksRef.current.push(e.data);
+          }
+        };
+        recorder.start(1000); // Collect 1s chunks
+        mediaRecorderRef.current = recorder;
+      } catch (e) {
+        console.error("Recording failed to start", e);
+      }
+    }
+
     setView('EMERGENCY');
     setIsInitializing(true);
     setActionState(defaultActionState);
     setLogs([]);
     addLog("Emergency Triggered. Initializing protocols...", "SYSTEM");
+    if (stream) addLog("Video recording started.", "SYSTEM");
 
     try {
       // 1. Get Location
@@ -68,8 +98,8 @@ export default function App() {
       addLog(`Location acquired: ${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`, "SYSTEM");
 
       // 2. Generate Contextual AI Script (Parallel)
-      addLog("Generating emergency context script via Gemini...", "AI");
-      const scriptPromise = generateEmergencyScript(profile, coords, "Difficulty breathing/General Distress");
+      addLog(`Generating emergency script for: "${situation}"`, "AI");
+      const scriptPromise = generateEmergencyScript(profile, coords, situation);
       
       // 3. Find Hospital (Parallel)
       setActionState(prev => ({ ...prev, locateHospital: EmergencyStepStatus.IN_PROGRESS }));
@@ -94,7 +124,7 @@ export default function App() {
       startEmergencySequence(script);
 
       // 5. Generate and Play Audio Reassurance
-      generateCalmInstructions("Difficulty breathing")
+      generateCalmInstructions(situation)
         .then(audioBuffer => playAudio(audioBuffer))
         .catch(err => console.error("Audio generation failed", err));
 
@@ -108,8 +138,6 @@ export default function App() {
     // Sequence 1: 911 (Simulated/Test Mode)
     setActionState(prev => ({ ...prev, call911: EmergencyStepStatus.IN_PROGRESS }));
     setTimeout(() => {
-      // TEST MODE: Actual dialing suppressed for safety.
-      // window.location.href = "tel:911";
       addLog("TEST MODE: 911 dialing skipped. Script prepared for operator.", "SYSTEM");
       setActionState(prev => ({ ...prev, call911: EmergencyStepStatus.COMPLETED }));
     }, 1500);
@@ -117,7 +145,7 @@ export default function App() {
     // Sequence 2: Contacts
     setActionState(prev => ({ ...prev, notifyContacts: EmergencyStepStatus.IN_PROGRESS }));
     setTimeout(() => {
-      addLog(`Dispatched SMS to ${contacts.length} emergency contacts.`, "SYSTEM");
+      addLog(`Dispatched SMS/Email to ${contacts.length} emergency contacts.`, "SYSTEM");
       setActionState(prev => ({ ...prev, notifyContacts: EmergencyStepStatus.COMPLETED }));
     }, 3000);
 
@@ -132,6 +160,17 @@ export default function App() {
 
   const handleCancel = () => {
     if (window.confirm("Are you sure you want to cancel the emergency alert?")) {
+      // Stop recording
+      if (mediaRecorderRef.current) {
+        mediaRecorderRef.current.stop();
+        mediaRecorderRef.current = null;
+      }
+      // Stop stream tracks
+      if (mediaStream) {
+        mediaStream.getTracks().forEach(track => track.stop());
+        setMediaStream(null);
+      }
+      
       setView('HOME');
       setActionState(defaultActionState);
     }
@@ -145,7 +184,7 @@ export default function App() {
         <div className="absolute top-0 right-0 p-4 z-50">
           <button 
             onClick={() => setView('SETTINGS')}
-            className="bg-slate-200 text-slate-700 p-3 rounded-full hover:bg-slate-300 transition-colors"
+            className="bg-slate-200 text-slate-700 p-3 rounded-full hover:bg-slate-300 transition-colors shadow-md"
           >
             <SettingsIcon size={24} />
           </button>
@@ -155,10 +194,13 @@ export default function App() {
       {/* Views */}
       {view === 'HOME' && (
         <div className="flex-1 flex flex-col">
-          <EmergencyButton onTrigger={handleTriggerEmergency} isLoading={isInitializing} />
+          <EmergencyButton onTrigger={handleStartIntake} isLoading={isInitializing} />
           <div className="p-4 text-center text-slate-400 text-xs flex justify-center items-center gap-2">
             <ShieldCheck size={14} />
             <span>Secure • Encrypted • AI Enhanced</span>
+            {profile.isResponder && (
+               <span className="ml-2 bg-purple-100 text-purple-800 text-[10px] font-bold px-2 py-0.5 rounded-full">RESPONDER ACTIVE</span>
+            )}
           </div>
         </div>
       )}
@@ -173,12 +215,20 @@ export default function App() {
         />
       )}
 
+      {view === 'INTAKE' && (
+        <IntakeScreen 
+          onConfirm={handleTriggerEmergency}
+          onCancel={() => setView('HOME')}
+        />
+      )}
+
       {view === 'EMERGENCY' && (
         <LiveEmergency 
           status={actionState} 
           logs={logs}
           script={generatedScript}
           onCancel={handleCancel}
+          stream={mediaStream}
         />
       )}
     </div>

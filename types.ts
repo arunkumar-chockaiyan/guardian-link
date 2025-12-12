@@ -7,6 +7,7 @@ export interface Contact {
   id: string;
   name: string;
   phone: string;
+  email: string;
   relation: string;
 }
 
@@ -14,6 +15,8 @@ export interface UserProfile {
   name: string;
   medicalConditions: string;
   address: string; // Manually entered or reverse geocoded
+  isResponder: boolean;
+  responderSkills: string;
 }
 
 export enum EmergencyStepStatus {

@@ -1,12 +1,13 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { EmergencyActionState, EmergencyStepStatus, LogEntry } from '../types';
-import { PhoneCall, Ambulance, Users, Radio, CheckCircle2, Loader2, XCircle, MapPin } from 'lucide-react';
+import { PhoneCall, Ambulance, Users, Radio, CheckCircle2, Loader2, XCircle, Video, Activity } from 'lucide-react';
 
 interface Props {
   status: EmergencyActionState;
   logs: LogEntry[];
   script: string;
   onCancel: () => void;
+  stream: MediaStream | null;
 }
 
 const StepCard: React.FC<{
@@ -47,7 +48,15 @@ const StepCard: React.FC<{
   );
 };
 
-export const LiveEmergency: React.FC<Props> = ({ status, logs, script, onCancel }) => {
+export const LiveEmergency: React.FC<Props> = ({ status, logs, script, onCancel, stream }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    if (videoRef.current && stream) {
+      videoRef.current.srcObject = stream;
+    }
+  }, [stream]);
+
   return (
     <div className="h-full flex flex-col bg-slate-100">
       {/* Header */}
@@ -67,6 +76,26 @@ export const LiveEmergency: React.FC<Props> = ({ status, logs, script, onCancel 
       {/* Main Content */}
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         
+        {/* Live Video Monitor */}
+        {stream && (
+          <div className="bg-black rounded-xl overflow-hidden shadow-lg relative h-48 border-2 border-slate-800">
+            <video 
+              ref={videoRef} 
+              autoPlay 
+              playsInline 
+              muted 
+              className="w-full h-full object-cover opacity-80"
+            />
+            <div className="absolute top-3 left-3 bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1 animate-pulse">
+              <span className="w-2 h-2 bg-white rounded-full"></span>
+              REC
+            </div>
+            <div className="absolute bottom-0 left-0 right-0 p-2 bg-gradient-to-t from-black/80 to-transparent text-white text-xs">
+              <span className="flex items-center gap-1 font-mono"><Activity size={10} /> Live vital monitoring (Simulated)</span>
+            </div>
+          </div>
+        )}
+
         {/* 4 Key Steps Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <StepCard 
