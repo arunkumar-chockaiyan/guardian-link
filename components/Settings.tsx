@@ -55,7 +55,7 @@ export const Settings: React.FC<Props> = ({ profile, contacts, onSaveProfile, on
                 type="text"
                 value={localProfile.name}
                 onChange={e => setLocalProfile({ ...localProfile, name: e.target.value })}
-                className="w-full p-3 border border-slate-300 rounded-lg text-lg"
+                className="w-full p-3 border border-slate-300 rounded-lg text-lg bg-white text-slate-900 placeholder-slate-400"
                 placeholder="e.g. John Doe"
               />
             </div>
@@ -64,7 +64,7 @@ export const Settings: React.FC<Props> = ({ profile, contacts, onSaveProfile, on
               <textarea
                 value={localProfile.medicalConditions}
                 onChange={e => setLocalProfile({ ...localProfile, medicalConditions: e.target.value })}
-                className="w-full p-3 border border-slate-300 rounded-lg text-lg h-24"
+                className="w-full p-3 border border-slate-300 rounded-lg text-lg h-24 bg-white text-slate-900 placeholder-slate-400"
                 placeholder="e.g. Asthma, Diabetes Type 2, Heart Condition"
               />
             </div>
@@ -74,7 +74,7 @@ export const Settings: React.FC<Props> = ({ profile, contacts, onSaveProfile, on
                 type="text"
                 value={localProfile.address}
                 onChange={e => setLocalProfile({ ...localProfile, address: e.target.value })}
-                className="w-full p-3 border border-slate-300 rounded-lg text-lg"
+                className="w-full p-3 border border-slate-300 rounded-lg text-lg bg-white text-slate-900 placeholder-slate-400"
                 placeholder="123 Main St, Springfield"
               />
             </div>
@@ -109,7 +109,7 @@ export const Settings: React.FC<Props> = ({ profile, contacts, onSaveProfile, on
                       placeholder="Jane Doe"
                       value={contact.name}
                       onChange={e => updateContact(contact.id, 'name', e.target.value)}
-                      className="w-full p-2 border rounded"
+                      className="w-full p-2 border rounded bg-white text-slate-900 placeholder-slate-400"
                     />
                   </div>
                   <div className="space-y-1">
@@ -118,7 +118,7 @@ export const Settings: React.FC<Props> = ({ profile, contacts, onSaveProfile, on
                       placeholder="e.g. Daughter"
                       value={contact.relation}
                       onChange={e => updateContact(contact.id, 'relation', e.target.value)}
-                      className="w-full p-2 border rounded"
+                      className="w-full p-2 border rounded bg-white text-slate-900 placeholder-slate-400"
                     />
                   </div>
                   <div className="space-y-1">
@@ -127,7 +127,7 @@ export const Settings: React.FC<Props> = ({ profile, contacts, onSaveProfile, on
                       placeholder="555-0123"
                       value={contact.phone}
                       onChange={e => updateContact(contact.id, 'phone', e.target.value)}
-                      className="w-full p-2 border rounded"
+                      className="w-full p-2 border rounded bg-white text-slate-900 placeholder-slate-400"
                       type="tel"
                     />
                   </div>
@@ -137,7 +137,7 @@ export const Settings: React.FC<Props> = ({ profile, contacts, onSaveProfile, on
                       placeholder="jane@example.com"
                       value={contact.email}
                       onChange={e => updateContact(contact.id, 'email', e.target.value)}
-                      className="w-full p-2 border rounded"
+                      className="w-full p-2 border rounded bg-white text-slate-900 placeholder-slate-400"
                       type="email"
                     />
                   </div>
@@ -185,7 +185,7 @@ export const Settings: React.FC<Props> = ({ profile, contacts, onSaveProfile, on
                   type="text"
                   value={localProfile.responderSkills}
                   onChange={e => setLocalProfile({ ...localProfile, responderSkills: e.target.value })}
-                  className="w-full p-3 border border-purple-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none"
+                  className="w-full p-3 border border-purple-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 outline-none bg-white text-slate-900 placeholder-slate-400"
                   placeholder="e.g. CPR Certified, EMT, Nurse, Strong swimmer"
                 />
                 <p className="text-xs text-purple-500 mt-2 flex items-center gap-1">

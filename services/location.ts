@@ -15,11 +15,25 @@ export const getCurrentLocation = (): Promise<Coordinates> => {
         });
       },
       (error) => {
-        reject(error);
+        let msg = "Unknown location error";
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            msg = "User denied location permission";
+            break;
+          case error.POSITION_UNAVAILABLE:
+            msg = "Location information is unavailable";
+            break;
+          case error.TIMEOUT:
+            msg = "The request to get user location timed out";
+            break;
+          default:
+            msg = error.message;
+        }
+        reject(new Error(msg));
       },
       {
         enableHighAccuracy: true,
-        timeout: 10000,
+        timeout: 15000,
         maximumAge: 0
       }
     );

@@ -3,6 +3,7 @@ import { EmergencyButton } from './components/EmergencyButton';
 import { Settings } from './components/Settings';
 import { LiveEmergency } from './components/LiveEmergency';
 import { IntakeScreen } from './components/IntakeScreen';
+import { AssetGenerator } from './components/AssetGenerator';
 import { UserProfile, Contact, EmergencyActionState, EmergencyStepStatus, LogEntry } from './types';
 import { getCurrentLocation } from './services/location.ts';
 import { generateEmergencyScript, findNearestHospital, generateCalmInstructions } from './services/geminiService';
@@ -25,6 +26,13 @@ const defaultActionState: EmergencyActionState = {
 };
 
 export default function App() {
+  // Hidden Developer Route for Generating Assets
+  const [isAssetMode] = useState(() => typeof window !== 'undefined' && window.location.hash === '#assets');
+
+  if (isAssetMode) {
+    return <AssetGenerator />;
+  }
+
   const [view, setView] = useState<'HOME' | 'SETTINGS' | 'INTAKE' | 'EMERGENCY'>('HOME');
   const [profile, setProfile] = useState<UserProfile>(defaultProfile);
   const [contacts, setContacts] = useState<Contact[]>([]);
@@ -35,8 +43,13 @@ export default function App() {
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   
   const audioContextRef = useRef<AudioContext | null>(null);
+  const activeAudioSourceRef = useRef<AudioBufferSourceNode | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
+  
+  // Refs for managing cancellation of async flows
+  const timeoutRefs = useRef<number[]>([]);
+  const isEmergencyActiveRef = useRef(false);
 
   // Helper to add logs
   const addLog = (message: string, source: LogEntry['source'] = 'SYSTEM') => {
@@ -50,13 +63,35 @@ export default function App() {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
       const ctx = audioContextRef.current;
+      
+      // Stop any previous audio
+      if (activeAudioSourceRef.current) {
+        try { activeAudioSourceRef.current.stop(); } catch (e) {}
+      }
+
       const audioBuffer = await ctx.decodeAudioData(buffer);
       const source = ctx.createBufferSource();
       source.buffer = audioBuffer;
       source.connect(ctx.destination);
+      source.onended = () => { activeAudioSourceRef.current = null; };
       source.start(0);
+      activeAudioSourceRef.current = source;
     } catch (e) {
       console.error("Audio playback error", e);
+    }
+  };
+
+  const stopAudio = () => {
+    if (activeAudioSourceRef.current) {
+      try {
+        activeAudioSourceRef.current.stop();
+      } catch (e) {
+        console.warn("Failed to stop audio source", e);
+      }
+      activeAudioSourceRef.current = null;
+    }
+    if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+      audioContextRef.current.suspend();
     }
   };
 
@@ -66,8 +101,14 @@ export default function App() {
 
   // The Master Emergency Coordinator Function
   const handleTriggerEmergency = async (situation: string, stream: MediaStream | null) => {
+    isEmergencyActiveRef.current = true;
     setMediaStream(stream);
     
+    // Resume audio context if it was suspended
+    if (audioContextRef.current && audioContextRef.current.state === 'suspended') {
+      audioContextRef.current.resume();
+    }
+
     // Start Recording if stream exists
     if (stream) {
       try {
@@ -92,12 +133,23 @@ export default function App() {
     if (stream) addLog("Video recording started.", "SYSTEM");
 
     try {
-      // 1. Get Location
+      // 1. Get Location (with Fallback)
+      if (!isEmergencyActiveRef.current) return;
       addLog("Acquiring high-accuracy geolocation...", "SYSTEM");
-      const coords = await getCurrentLocation();
-      addLog(`Location acquired: ${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`, "SYSTEM");
+      
+      let coords: { latitude: number; longitude: number };
+      try {
+        coords = await getCurrentLocation();
+        addLog(`Location acquired: ${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`, "SYSTEM");
+      } catch (locError: any) {
+        console.warn("Location failure:", locError);
+        addLog(`Location failed (${locError.message}). Using fallback (Demo Mode).`, "SYSTEM");
+        // Fallback to San Francisco for demo purposes if location fails
+        coords = { latitude: 37.7749, longitude: -122.4194 };
+      }
 
       // 2. Generate Contextual AI Script (Parallel)
+      if (!isEmergencyActiveRef.current) return;
       addLog(`Generating emergency script for: "${situation}"`, "AI");
       const scriptPromise = generateEmergencyScript(profile, coords, situation);
       
@@ -109,6 +161,8 @@ export default function App() {
       // Await critical data
       const [script, hospital] = await Promise.all([scriptPromise, hospitalPromise]);
       
+      if (!isEmergencyActiveRef.current) return;
+
       setGeneratedScript(script);
       addLog(`Script generated: "${script}"`, "AI");
       
@@ -124,56 +178,80 @@ export default function App() {
       startEmergencySequence(script);
 
       // 5. Generate and Play Audio Reassurance
-      generateCalmInstructions(situation)
-        .then(audioBuffer => playAudio(audioBuffer))
-        .catch(err => console.error("Audio generation failed", err));
+      if (isEmergencyActiveRef.current) {
+        generateCalmInstructions(situation)
+          .then(audioBuffer => {
+            if (isEmergencyActiveRef.current) playAudio(audioBuffer);
+          })
+          .catch(err => console.error("Audio generation failed", err));
+      }
 
     } catch (error) {
+      if (!isEmergencyActiveRef.current) return;
       addLog(`Critical Init Error: ${error}`, "SYSTEM");
       setIsInitializing(false);
     }
   };
 
   const startEmergencySequence = (script: string) => {
+    if (!isEmergencyActiveRef.current) return;
+
     // Sequence 1: 911 (Simulated/Test Mode)
     setActionState(prev => ({ ...prev, call911: EmergencyStepStatus.IN_PROGRESS }));
-    setTimeout(() => {
+    const t1 = window.setTimeout(() => {
+      if (!isEmergencyActiveRef.current) return;
       addLog("TEST MODE: 911 dialing skipped. Script prepared for operator.", "SYSTEM");
       setActionState(prev => ({ ...prev, call911: EmergencyStepStatus.COMPLETED }));
     }, 1500);
 
     // Sequence 2: Contacts
     setActionState(prev => ({ ...prev, notifyContacts: EmergencyStepStatus.IN_PROGRESS }));
-    setTimeout(() => {
+    const t2 = window.setTimeout(() => {
+      if (!isEmergencyActiveRef.current) return;
       addLog(`Dispatched SMS/Email to ${contacts.length} emergency contacts.`, "SYSTEM");
       setActionState(prev => ({ ...prev, notifyContacts: EmergencyStepStatus.COMPLETED }));
     }, 3000);
 
     // Sequence 3: Responders
     setActionState(prev => ({ ...prev, pageResponders: EmergencyStepStatus.IN_PROGRESS }));
-    setTimeout(() => {
+    const t3 = window.setTimeout(() => {
+      if (!isEmergencyActiveRef.current) return;
       addLog("Broadcasted alert to Guardian Community Network (2 mile radius).", "SYSTEM");
       addLog("3 registered responders acknowledged receipt.", "SYSTEM");
       setActionState(prev => ({ ...prev, pageResponders: EmergencyStepStatus.COMPLETED }));
     }, 5500);
+
+    timeoutRefs.current = [t1, t2, t3];
   };
 
   const handleCancel = () => {
-    if (window.confirm("Are you sure you want to cancel the emergency alert?")) {
-      // Stop recording
-      if (mediaRecorderRef.current) {
+    // Immediate cancellation without confirmation to ensure responsiveness
+    isEmergencyActiveRef.current = false;
+    
+    // 1. Clear any pending timeouts
+    timeoutRefs.current.forEach(clearTimeout);
+    timeoutRefs.current = [];
+
+    // 2. Stop recording
+    if (mediaRecorderRef.current) {
+      if (mediaRecorderRef.current.state !== 'inactive') {
         mediaRecorderRef.current.stop();
-        mediaRecorderRef.current = null;
       }
-      // Stop stream tracks
-      if (mediaStream) {
-        mediaStream.getTracks().forEach(track => track.stop());
-        setMediaStream(null);
-      }
-      
-      setView('HOME');
-      setActionState(defaultActionState);
+      mediaRecorderRef.current = null;
     }
+
+    // 3. Stop stream tracks
+    if (mediaStream) {
+      mediaStream.getTracks().forEach(track => track.stop());
+      setMediaStream(null);
+    }
+    
+    // 4. Stop any playing audio
+    stopAudio();
+
+    setView('HOME');
+    setActionState(defaultActionState);
+    setIsInitializing(false);
   };
 
   // Main Render Logic

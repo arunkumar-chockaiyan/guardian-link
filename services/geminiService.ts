@@ -79,12 +79,33 @@ export const findNearestHospital = async (coords: Coordinates): Promise<{ name: 
 // 3. Generate Audio Instructions (TTS) to calm the user
 export const generateCalmInstructions = async (situation: string): Promise<ArrayBuffer> => {
   const ai = getClient();
-  const prompt = `The user is reporting: "${situation}". Speak a short, 1-sentence calming instruction telling them help is being contacted. Use a firm but kind voice.`;
+  
+  // Step 1: Generate the text message first (Reasoning)
+  // We use the standard flash model for this to ensure we get good text.
+  // This avoids issues where the TTS model rejects complex instruction prompts.
+  let message = "Help is being contacted. Please remain calm and stay where you are.";
+  try {
+    const textPrompt = `
+      Situation: ${situation}
+      Task: Write a single, short, calming sentence to say to the user. 
+      Example: "Help is on the way, breathe slowly."
+    `;
+    const textResponse = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: textPrompt,
+    });
+    if (textResponse.text) {
+        message = textResponse.text;
+    }
+  } catch (e) {
+    console.warn("Failed to generate custom calming text, using default.", e);
+  }
 
+  // Step 2: Convert to Speech
   try {
     const response = await ai.models.generateContent({
       model: "gemini-2.5-flash-preview-tts",
-      contents: [{ parts: [{ text: prompt }] }],
+      contents: [{ parts: [{ text: message }] }], 
       config: {
         responseModalities: [Modality.AUDIO],
         speechConfig: {
@@ -96,7 +117,7 @@ export const generateCalmInstructions = async (situation: string): Promise<Array
     });
 
     const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
-    if (!base64Audio) throw new Error("No audio data");
+    if (!base64Audio) throw new Error("No audio data received from model");
 
     // Decode base64 to ArrayBuffer
     const binaryString = atob(base64Audio);

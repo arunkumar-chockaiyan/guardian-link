@@ -13,6 +13,10 @@ export const IntakeScreen: React.FC<Props> = ({ onConfirm, onCancel }) => {
   const [cameraError, setCameraError] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
   const recognitionRef = useRef<any>(null);
+  
+  // Refs for cleanup management
+  const streamRef = useRef<MediaStream | null>(null);
+  const isConfirmedRef = useRef(false);
 
   // Initialize Camera
   useEffect(() => {
@@ -22,6 +26,7 @@ export const IntakeScreen: React.FC<Props> = ({ onConfirm, onCancel }) => {
           video: { facingMode: 'user' }, 
           audio: true 
         });
+        streamRef.current = s;
         setStream(s);
         if (videoRef.current) {
           videoRef.current.srcObject = s;
@@ -34,7 +39,10 @@ export const IntakeScreen: React.FC<Props> = ({ onConfirm, onCancel }) => {
     initCamera();
     
     return () => {
-      // Don't stop tracks here, we want to pass them to the next screen
+      // Only stop tracks if we are NOT confirming (i.e. cancelling or navigating away)
+      if (!isConfirmedRef.current && streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
     };
   }, []);
 
@@ -77,7 +85,8 @@ export const IntakeScreen: React.FC<Props> = ({ onConfirm, onCancel }) => {
   }, []);
 
   const handleConfirm = () => {
-    onConfirm(situation || "General Emergency", stream);
+    isConfirmedRef.current = true; // Mark as confirmed to prevent cleanup
+    onConfirm(situation || "General Emergency", streamRef.current);
   };
 
   return (
