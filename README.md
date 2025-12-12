@@ -8,6 +8,12 @@ GuardianLink is a concept web application designed to assist seniors and individ
 >
 > This application is a **Proof of Concept** built for demonstration and hackathon purposes. It is **NOT** connected to real emergency services (911) and should **NOT** be used in actual life-threatening situations. The "simulated" calls and alerts are purely visual or mock implementations.
 
+## 📺 Demo Video
+
+[![GuardianLink Demo](https://img.youtube.com/vi/ukcc7zFe7qc/0.jpg)](https://youtu.be/ukcc7zFe7qc)
+
+[Watch the full demo on YouTube](https://youtu.be/ukcc7zFe7qc)
+
 ## 🌟 Features
 
 *   **One-Tap Activation**: A high-contrast, accessible "Panic Button" interface designed for high-stress situations.
