@@ -1,0 +1,8 @@
+{
+  "name": "GuardianLink",
+  "description": "An emergency response coordination app designed for seniors. It simultaneously coordinates 911 help, hospital location, family alerts, and community first responders.",
+  "requestFramePermissions": [
+    "microphone",
+    "geolocation"
+  ]
+}

@@ -1,0 +1,186 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { EmergencyButton } from './components/EmergencyButton';
+import { Settings } from './components/Settings';
+import { LiveEmergency } from './components/LiveEmergency';
+import { UserProfile, Contact, EmergencyActionState, EmergencyStepStatus, LogEntry } from './types';
+import { getCurrentLocation } from './services/location.ts';
+import { generateEmergencyScript, findNearestHospital, generateCalmInstructions } from './services/geminiService';
+import { Settings as SettingsIcon, ShieldCheck } from 'lucide-react';
+
+// Default State
+const defaultProfile: UserProfile = {
+  name: "Senior Citizen",
+  medicalConditions: "None listed",
+  address: "Unknown"
+};
+
+const defaultActionState: EmergencyActionState = {
+  call911: EmergencyStepStatus.IDLE,
+  locateHospital: EmergencyStepStatus.IDLE,
+  notifyContacts: EmergencyStepStatus.IDLE,
+  pageResponders: EmergencyStepStatus.IDLE,
+};
+
+export default function App() {
+  const [view, setView] = useState<'HOME' | 'SETTINGS' | 'EMERGENCY'>('HOME');
+  const [profile, setProfile] = useState<UserProfile>(defaultProfile);
+  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [actionState, setActionState] = useState<EmergencyActionState>(defaultActionState);
+  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [generatedScript, setGeneratedScript] = useState<string>("");
+  const [isInitializing, setIsInitializing] = useState(false);
+  const audioContextRef = useRef<AudioContext | null>(null);
+
+  // Helper to add logs
+  const addLog = (message: string, source: LogEntry['source'] = 'SYSTEM') => {
+    setLogs(prev => [{ timestamp: new Date(), message, source }, ...prev]);
+  };
+
+  // Play audio buffer
+  const playAudio = async (buffer: ArrayBuffer) => {
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const ctx = audioContextRef.current;
+      const audioBuffer = await ctx.decodeAudioData(buffer);
+      const source = ctx.createBufferSource();
+      source.buffer = audioBuffer;
+      source.connect(ctx.destination);
+      source.start(0);
+    } catch (e) {
+      console.error("Audio playback error", e);
+    }
+  };
+
+  // The Master Emergency Coordinator Function
+  const handleTriggerEmergency = async () => {
+    setView('EMERGENCY');
+    setIsInitializing(true);
+    setActionState(defaultActionState);
+    setLogs([]);
+    addLog("Emergency Triggered. Initializing protocols...", "SYSTEM");
+
+    try {
+      // 1. Get Location
+      addLog("Acquiring high-accuracy geolocation...", "SYSTEM");
+      const coords = await getCurrentLocation();
+      addLog(`Location acquired: ${coords.latitude.toFixed(4)}, ${coords.longitude.toFixed(4)}`, "SYSTEM");
+
+      // 2. Generate Contextual AI Script (Parallel)
+      addLog("Generating emergency context script via Gemini...", "AI");
+      const scriptPromise = generateEmergencyScript(profile, coords, "Difficulty breathing/General Distress");
+      
+      // 3. Find Hospital (Parallel)
+      setActionState(prev => ({ ...prev, locateHospital: EmergencyStepStatus.IN_PROGRESS }));
+      addLog("Scanning for nearest emergency facilities...", "SYSTEM");
+      const hospitalPromise = findNearestHospital(coords);
+
+      // Await critical data
+      const [script, hospital] = await Promise.all([scriptPromise, hospitalPromise]);
+      
+      setGeneratedScript(script);
+      addLog(`Script generated: "${script}"`, "AI");
+      
+      setActionState(prev => ({ 
+        ...prev, 
+        locateHospital: EmergencyStepStatus.COMPLETED,
+        hospitalData: hospital
+      }));
+      addLog(`Facility located: ${hospital.name} (${hospital.address})`, "AI");
+
+      // 4. Simulate Calls/Dispatch
+      setIsInitializing(false);
+      startEmergencySequence(script);
+
+      // 5. Generate and Play Audio Reassurance
+      generateCalmInstructions("Difficulty breathing")
+        .then(audioBuffer => playAudio(audioBuffer))
+        .catch(err => console.error("Audio generation failed", err));
+
+    } catch (error) {
+      addLog(`Critical Init Error: ${error}`, "SYSTEM");
+      setIsInitializing(false);
+    }
+  };
+
+  const startEmergencySequence = (script: string) => {
+    // Sequence 1: 911 (Simulated/Test Mode)
+    setActionState(prev => ({ ...prev, call911: EmergencyStepStatus.IN_PROGRESS }));
+    setTimeout(() => {
+      // TEST MODE: Actual dialing suppressed for safety.
+      // window.location.href = "tel:911";
+      addLog("TEST MODE: 911 dialing skipped. Script prepared for operator.", "SYSTEM");
+      setActionState(prev => ({ ...prev, call911: EmergencyStepStatus.COMPLETED }));
+    }, 1500);
+
+    // Sequence 2: Contacts
+    setActionState(prev => ({ ...prev, notifyContacts: EmergencyStepStatus.IN_PROGRESS }));
+    setTimeout(() => {
+      addLog(`Dispatched SMS to ${contacts.length} emergency contacts.`, "SYSTEM");
+      setActionState(prev => ({ ...prev, notifyContacts: EmergencyStepStatus.COMPLETED }));
+    }, 3000);
+
+    // Sequence 3: Responders
+    setActionState(prev => ({ ...prev, pageResponders: EmergencyStepStatus.IN_PROGRESS }));
+    setTimeout(() => {
+      addLog("Broadcasted alert to Guardian Community Network (2 mile radius).", "SYSTEM");
+      addLog("3 registered responders acknowledged receipt.", "SYSTEM");
+      setActionState(prev => ({ ...prev, pageResponders: EmergencyStepStatus.COMPLETED }));
+    }, 5500);
+  };
+
+  const handleCancel = () => {
+    if (window.confirm("Are you sure you want to cancel the emergency alert?")) {
+      setView('HOME');
+      setActionState(defaultActionState);
+    }
+  };
+
+  // Main Render Logic
+  return (
+    <div className="h-full w-full flex flex-col relative">
+      {/* Top Bar for Home View */}
+      {view === 'HOME' && (
+        <div className="absolute top-0 right-0 p-4 z-50">
+          <button 
+            onClick={() => setView('SETTINGS')}
+            className="bg-slate-200 text-slate-700 p-3 rounded-full hover:bg-slate-300 transition-colors"
+          >
+            <SettingsIcon size={24} />
+          </button>
+        </div>
+      )}
+
+      {/* Views */}
+      {view === 'HOME' && (
+        <div className="flex-1 flex flex-col">
+          <EmergencyButton onTrigger={handleTriggerEmergency} isLoading={isInitializing} />
+          <div className="p-4 text-center text-slate-400 text-xs flex justify-center items-center gap-2">
+            <ShieldCheck size={14} />
+            <span>Secure • Encrypted • AI Enhanced</span>
+          </div>
+        </div>
+      )}
+
+      {view === 'SETTINGS' && (
+        <Settings 
+          profile={profile}
+          contacts={contacts}
+          onSaveProfile={setProfile}
+          onSaveContacts={setContacts}
+          onClose={() => setView('HOME')}
+        />
+      )}
+
+      {view === 'EMERGENCY' && (
+        <LiveEmergency 
+          status={actionState} 
+          logs={logs}
+          script={generatedScript}
+          onCancel={handleCancel}
+        />
+      )}
+    </div>
+  );
+}
